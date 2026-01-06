@@ -8,15 +8,38 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(cors()); // Allow frontend to talk to backend
+app.use(cors());
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.log(err));
+// --- DATABASE CONNECTION (Crash Proof) ---
+const connectDB = async () => {
+    try {
+        const connStr = process.env.MONGO_URI;
+
+        // DEBUG: Log if the variable exists (Don't log the actual password)
+        console.log("--- DEBUG START ---");
+        console.log("MONGO_URI Type:", typeof connStr);
+        console.log("MONGO_URI Length:", connStr ? connStr.length : "0 (MISSING)");
+        console.log("TEST_MODE:", process.env.TEST_MODE);
+        console.log("--- DEBUG END ---");
+
+        if (!connStr) {
+            throw new Error("MONGO_URI is missing in Environment Variables!");
+        }
+
+        await mongoose.connect(connStr);
+        console.log('MongoDB Connected Successfully');
+
+    } catch (err) {
+        console.error("❌ MONGODB CONNECTION ERROR:");
+        console.error(err.message);
+        // We do NOT exit process here, so the health check can still report the error
+    }
+};
+
+// Connect immediately
+connectDB();
 
 // --- HELPER: Handle "Test Mode" Time Travel ---
-// This is required for the automated tests to function correctly
 const getCurrentTime = (req) => {
     if (process.env.TEST_MODE === '1' && req.headers['x-test-now-ms']) {
         return new Date(parseInt(req.headers['x-test-now-ms']));
@@ -26,23 +49,32 @@ const getCurrentTime = (req) => {
 
 // --- ROUTES ---
 
-// 1. Health Check
+// 1. Health Check (Now gives details instead of crashing)
 app.get('/api/healthz', (req, res) => {
-    const isDbConnected = mongoose.connection.readyState === 1;
-    if (isDbConnected) {
+    const state = mongoose.connection.readyState;
+    const statusNames = ["Disconnected", "Connected", "Connecting", "Disconnecting"];
+
+    if (state === 1) {
         res.json({ ok: true });
     } else {
-        res.status(500).json({ ok: false });
+        // Return 500 but with JSON details so we know WHY
+        res.status(500).json({
+            ok: false,
+            status: statusNames[state],
+            error: "Database not connected. Check Vercel Logs."
+        });
     }
 });
 
 // 2. Create Paste
 app.post('/api/pastes', async (req, res) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(500).json({ error: "Database Disconnected" });
+    }
     try {
         const { content, ttl_seconds, max_views } = req.body;
         if (!content) return res.status(400).json({ error: "Content is required" });
 
-        // Calculate Expiry
         let expiresAt = null;
         if (ttl_seconds && ttl_seconds > 0) {
             const now = getCurrentTime(req);
@@ -55,7 +87,6 @@ app.post('/api/pastes', async (req, res) => {
             expiresAt
         });
 
-        // Detect environment (Vercel vs Local) to build the URL
         const protocol = req.headers['x-forwarded-proto'] || 'http';
         const host = req.headers.host;
 
@@ -71,150 +102,62 @@ app.post('/api/pastes', async (req, res) => {
 
 // 3. Get Paste (JSON API)
 app.get('/api/pastes/:id', async (req, res) => {
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: "DB Error" });
+
     try {
         const now = getCurrentTime(req);
-
-        // 1. Find and validate constraints BEFORE incrementing
         const paste = await Paste.findOne({ _id: req.params.id });
 
         if (!paste) return res.status(404).json({ error: "Not found" });
+        if (paste.expiresAt && paste.expiresAt < now) return res.status(404).json({ error: "Expired" });
+        if (paste.maxViews !== null && paste.currentViews >= paste.maxViews) return res.status(404).json({ error: "Limit reached" });
 
-        // Check Time Expiry
-        if (paste.expiresAt && paste.expiresAt < now) {
-            return res.status(404).json({ error: "Paste expired" });
-        }
-
-        // Check View Limit (Before Increment)
-        if (paste.maxViews !== null && paste.currentViews >= paste.maxViews) {
-            return res.status(404).json({ error: "View limit reached" });
-        }
-
-        // 2. Atomic Increment
         const updatedPaste = await Paste.findOneAndUpdate(
             {
                 _id: req.params.id,
-                $or: [
-                    { maxViews: null },
-                    { $expr: { $lt: ["$currentViews", "$maxViews"] } }
-                ]
+                $or: [{ maxViews: null }, { $expr: { $lt: ["$currentViews", "$maxViews"] } }]
             },
             { $inc: { currentViews: 1 } },
             { new: true }
         );
 
-        if (!updatedPaste) {
-            return res.status(404).json({ error: "View limit reached" });
-        }
+        if (!updatedPaste) return res.status(404).json({ error: "Limit reached" });
 
-        // Return Data
         res.json({
             content: updatedPaste.content,
             remaining_views: updatedPaste.maxViews ? updatedPaste.maxViews - updatedPaste.currentViews : null,
             expires_at: updatedPaste.expiresAt
         });
-
     } catch (err) {
-        res.status(404).json({ error: "Not found or invalid ID" });
+        res.status(404).json({ error: "Not found" });
     }
 });
 
-// 4. View Paste (HTML Return - PROFESSIONAL THEME)
+// 4. View Paste (HTML)
 app.get('/p/:id', async (req, res) => {
+    if (mongoose.connection.readyState !== 1) return res.status(500).send("Database Disconnected");
+
     try {
         const now = getCurrentTime(req);
         const paste = await Paste.findOne({ _id: req.params.id });
 
-        // Validate Constraints
         if (!paste ||
             (paste.expiresAt && paste.expiresAt < now) ||
             (paste.maxViews !== null && paste.currentViews >= paste.maxViews)) {
-
-            // Professional 404 Page
-            return res.status(404).send(`
-         <body style="background:#0a0a0a; color:#ededed; font-family:-apple-system, sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; margin:0;">
-           <div style="text-align:center;">
-             <h1 style="font-size:3rem; margin-bottom:1rem; color:#333;">404</h1>
-             <p style="color:#666;">This paste is either expired or does not exist.</p>
-           </div>
-         </body>
-       `);
+            return res.status(404).send("<h1>404 - Not Found or Expired</h1>");
         }
 
-        // Increment View Count
         await Paste.updateOne({ _id: req.params.id }, { $inc: { currentViews: 1 } });
 
-        // Sanitize Content (Prevent XSS)
-        const safeContent = paste.content
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
+        const safeContent = paste.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-        // Serve Professional HTML
         res.send(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>View Paste</title>
-          <style>
-            body {
-              background-color: #0a0a0a;
-              color: #ededed;
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-              display: flex;
-              justify-content: center;
-              padding: 4rem 1rem;
-              margin: 0;
-            }
-            .container {
-              width: 100%;
-              max-width: 800px;
-            }
-            .meta {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 1rem;
-              padding-bottom: 1rem;
-              border-bottom: 1px solid #262626;
-            }
-            .brand {
-              font-weight: 600;
-              color: #a1a1aa;
-              font-size: 0.9rem;
-            }
-            .id-badge {
-              background: #262626;
-              padding: 4px 8px;
-              border-radius: 4px;
-              font-size: 0.8rem;
-              font-family: monospace;
-              color: #a1a1aa;
-            }
-            pre {
-              background-color: #171717;
-              border: 1px solid #262626;
-              border-radius: 8px;
-              padding: 1.5rem;
-              white-space: pre-wrap;
-              word-wrap: break-word;
-              font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-              font-size: 0.95rem;
-              line-height: 1.6;
-              color: #e5e5e5;
-              overflow-x: auto;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="meta">
-              <span class="brand">Pastebin Lite</span>
-              <span class="id-badge">${paste._id}</span>
-            </div>
-            <pre>${safeContent}</pre>
-          </div>
-        </body>
-      </html>
+      <!DOCTYPE html><html><head><title>Paste</title></head>
+      <body style="background:#0a0a0a;color:#ededed;padding:2rem;font-family:sans-serif;">
+        <div style="max-width:800px;margin:0 auto;">
+          <pre style="background:#171717;padding:1.5rem;border-radius:8px;overflow:auto;">${safeContent}</pre>
+        </div>
+      </body></html>
     `);
     } catch (err) {
         res.status(404).send("Error");
