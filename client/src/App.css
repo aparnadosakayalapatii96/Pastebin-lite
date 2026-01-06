@@ -1,0 +1,217 @@
+:root {
+    /* Professional Dark Palette */
+    --bg-color: #0a0a0a;
+    /* Near Black */
+    --surface-color: #171717;
+    /* Dark Gray Surface */
+    --border-color: #262626;
+    /* Subtle Border */
+    --text-primary: #e69696;
+    /* Off-white */
+    --text-secondary: #ba2a1a;
+    /* Muted Gray */
+    --accent: #f73302;
+    /* Professional Blue */
+    --accent-hover: #fe090974;
+    --danger: #ef4444;
+    --radius: 8px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* Center vertically too */
+    min-height: 100vh;
+    padding: 2rem 1rem;
+}
+
+.container {
+    width: 100%;
+    max-width: 650px;
+}
+
+/* --- Header --- */
+.header {
+    margin-bottom: 2rem;
+    text-align: left;
+    /* Professional tools usually align left */
+}
+
+.header h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+/* --- Main Card --- */
+.card {
+    background-color: var(--surface-color);
+    padding: 2rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* --- Form Elements --- */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Clean Editor Look */
+.code-input {
+    width: 100%;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 1rem;
+    border-radius: var(--radius);
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    resize: vertical;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.code-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+/* Inputs Row */
+.controls-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.control-item {
+    flex: 1;
+}
+
+.input-field {
+    width: 100%;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* --- Button --- */
+.submit-btn {
+    width: 100%;
+    padding: 0.875rem;
+    background-color: var(--accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.submit-btn:hover {
+    background-color: var(--accent-hover);
+}
+
+.submit-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* --- Result Section --- */
+.result-box {
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.result-box h3 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.result-link {
+    display: block;
+    background-color: var(--bg-color);
+    padding: 1rem;
+    margin: 1.5rem 0;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-family: monospace;
+    font-size: 0.9rem;
+    word-break: break-all;
+}
+
+.result-link:hover {
+    border-color: var(--text-secondary);
+}
+
+.reset-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.reset-btn:hover {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+}
+
+.error-msg {
+    color: var(--danger);
+    font-size: 0.875rem;
+    margin-top: 1rem;
+    text-align: center;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
