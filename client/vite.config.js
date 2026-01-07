@@ -5,7 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'https://pastebin-lite-alpha-two.vercel.app',
+      // This proxy is ONLY used when running 'npm run dev' locally
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      }
     }
   }
 })
