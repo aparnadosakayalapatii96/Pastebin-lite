@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import './App.css'; // Make sure to import the CSS file!
+import './App.css'; 
 
 function App() {
   const [content, setContent] = useState('');
@@ -9,6 +9,11 @@ function App() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // --- CONFIGURATION ---
+  // In Vercel, this will grab the real Backend URL.
+  // Locally, if undefined, it falls back to "" which uses the vite proxy.
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -16,7 +21,8 @@ function App() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/pastes', {
+      // Use the API_BASE variable to ensure we hit the correct server
+      const res = await fetch(`${API_BASE}/api/pastes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
